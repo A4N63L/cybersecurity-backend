@@ -1,5 +1,9 @@
 # Informe de recuperación y pruebas reales
 
+> Informe histórico anterior a la actividad Fail2Ban. Las referencias a JWT en
+> consola, LDAP sin TLS e infraestructura dentro del backend describen aquella
+> versión y ya no corresponden al estado actual. Consulta `INFORME-FAIL2BAN.md`.
+
 Fecha de ejecución: 14 de octubre de 2026, hora local del host
 (15 de octubre de 2026 en los logs UTC). Entorno: Linux Mint Live, Docker 29.1.3,
 Compose 2.40.3. El sistema se deja iniciado.

@@ -1,298 +1,188 @@
-# GameVault · Backend y laboratorio de Ciberseguridad
+# GameVault · Backend y laboratorio Fail2Ban
 
-Sistema académico nuevo: Angular + FastAPI + SQLite + Keycloak + OpenLDAP.
-El frontend es una carpeta independiente, hermana de este proyecto.
-Infraestructura única del laboratorio: `compose.yaml`, `compose.live.yaml` e
-`infra/` viven **en este repositorio backend**. No se requiere un tercer repositorio.
+FastAPI + SQLite, frontend Angular y autenticación Keycloak/OpenLDAP con LDAPS.
+Las tres superficies HTTP protegidas son **frontend, backend y Keycloak**.
+OpenLDAP es adicional, con protección específica de conexiones a 636;
+PostgreSQL es el almacenamiento de apoyo de Keycloak.
 
-## Inicio rápido
+## Proyectos y arranque
 
-Clona ambos repositorios como carpetas hermanas, conservando los nombres locales
-que espera el contexto de construcción de Compose:
+Conserva estas carpetas hermanas (frontend y backend mantienen sus remotos;
+auth y loadtest son repositorios locales nuevos, todavía sin remoto):
 
-```bash
-git clone https://github.com/A4N63L/cybersecurity-dashboard.git videojuegos-frontend
-git clone https://github.com/A4N63L/cybersecurity-backend.git videojuegos-backend
-cd videojuegos-backend
-python3 scripts/setup_env.py
+```text
+Ciberseguridad/
+├── videojuegos-frontend/    # Angular compilado + Nginx + Fail2Ban
+├── videojuegos-backend/     # FastAPI + Nginx + Fail2Ban; orquestación y datos
+├── videojuegos-auth/        # Keycloak, OpenLDAP, PostgreSQL y seguridad común
+└── videojuegos-loadtest/    # Generador y resultados; opcional para arrancar la aplicación
 ```
 
-El generador crea `.env` privado con cinco contraseñas aleatorias y permisos 600.
-Nunca sobrescribe un `.env` existente. Consulta ese archivo **solo localmente**
-para conocer las credenciales de tu instalación. No lo publiques ni lo compartas.
+Requisitos: Docker Compose con contextos de construcción adicionales, Bash,
+Python 3 y OpenSSL en el host. Internet en la primera construcción.
+La rama de Docker aislado de Mint Live también utiliza `sudo`, `util-linux`
+(`flock`, `mount`, `losetup`, `blkid`) y `e2fsprogs` (`mkfs.ext4`).
 
-Desde `videojuegos-backend`:
+Desde este proyecto:
 
 ```bash
+python3 scripts/setup_env.py
+bash lab.sh docker-host
 bash lab.sh up
 bash lab.sh ps -a
 ```
 
-Se necesitan Python 3 (para generar `.env`), Docker, Docker Compose, Bash e Internet para la primera
-descarga. No hace falta instalar Node.js ni las dependencias Python en el host.
-El frontend debe estar en `../videojuegos-frontend`.
+El generador de `.env` nunca sobrescribe credenciales existentes. `lab.sh up`
+genera una CA/certificado solo si no existen, combina los dos Compose con rutas
+explícitas y conserva el proyecto `ciber-p1-games`, servicios y volúmenes.
+`ldap-init` y `auth-migrate` deben terminar en 0; los cinco servicios permanentes
+deben estar `healthy`.
 
-El comando construye ambas imágenes, inicia los servicios, carga LDAP de manera
-idempotente y espera a los healthchecks. `ldap-init` debe terminar con código 0;
-los otros cinco servicios deben aparecer como `healthy`.
-
-Compose exige las variables de `.env`, sin contraseñas predeterminadas. Como
-alternativa al generador, copia `.env.example` a `.env` y completa sus cinco valores
-con contraseñas propias **antes de la primera inicialización**. Cambiar estas
-variables después no cambia automáticamente contraseñas almacenadas en las BD.
-En una instalación existente, conserva su `.env` y sus datos: el generador no
-rota credenciales ni modifica contenedores o bases de datos.
-
-### Particularidad de esta computadora: Linux Mint Live
-
-El Docker del sistema usa `vfs` sobre el almacenamiento Live. Las extracciones
-de capas agotaban los tiempos de espera. `lab.sh` detecta esa configuración y
-utiliza un daemon propio con `overlay2`:
-
-```text
-Socket:          /tmp/opencode/games-docker.sock
-Imágenes/caché:  /tmp/opencode/games-docker-data
-Datos duraderos: videojuegos-backend/.lab-data/
-```
-
-Puede pedir `sudo` para iniciar exclusivamente ese daemon. No reinicia el daemon
-original, no usa sus contenedores ni sus volúmenes y no modifica su configuración.
-El daemon usa namespace containerd `gameslab`, bridge predeterminado deshabilitado
-e iptables deshabilitado. Compose crea su propia red. Las construcciones usan
-la red del host para descargar dependencias; los servicios usan la red del lab.
-
-**Después de reiniciar la computadora**, ejecuta otra vez `bash lab.sh up`.
-Las imágenes de `/tmp` se descargarán/reconstruirán si han desaparecido; las bases
-de datos y LDAP se recuperan de `.lab-data`. No borres esa carpeta.
-
-`docker ps` sin parámetros muestra el Docker original. Para ver esta práctica,
-usa `bash lab.sh ps -a`. También puedes consultar directamente:
-
-```bash
-docker -H unix:///tmp/opencode/games-docker.sock ps -a
-```
-
-En una instalación Docker normal con overlay2, `lab.sh` usa el daemon habitual y
-los volúmenes nuevos de Compose. La misma configuración base puede levantarse
-con `docker compose up -d --build --wait`. El arranque y la recuperación se han
-verificado en esta máquina mediante `lab.sh` y `compose.live.yaml`.
-
-Variables opcionales del lanzador:
-
-- `GAMES_ISOLATED_DOCKER=1`: fuerza el daemon propio.
-- `GAMES_ISOLATED_DOCKER=0`: usa el Docker seleccionado por el entorno.
-
-Mantén la misma selección al parar, consultar y arrancar para no mezclar estados.
-
-## URLs y cuentas locales
-
-| Servicio | URL |
+| Servicio | Acceso publicado |
 |---|---|
-| Frontend | http://localhost:4200 |
-| Backend health | http://localhost:8001/health |
-| Swagger | http://localhost:8001/docs |
-| Keycloak administración | http://localhost:8082/admin/ |
-| Discovery OIDC | http://localhost:8082/realms/games-lab/.well-known/openid-configuration |
+| Frontend | http://localhost:4200, bind `127.0.0.1:4200` |
+| Backend | http://localhost:8001, bind `127.0.0.1:8001` |
+| Keycloak | http://localhost:8082, bind `127.0.0.1:8082` |
+| LDAP | `ldaps://openldap:636`, solo red bridge; 389 cerrado |
+| PostgreSQL | `postgres:5432`, solo red bridge |
 
-Usa **localhost**, no `127.0.0.1`, para navegar. Redirect URIs, issuer y CORS
-están configurados para esos orígenes exactos.
+Navega usando **localhost**: issuer, CORS y callbacks conservan esos orígenes.
+`alice` y `bob` usan las contraseñas privadas `ALICE_PASSWORD` y `BOB_PASSWORD`;
+la administración de Keycloak usa `KEYCLOAK_ADMIN_PASSWORD`. No publiques `.env`.
 
-| Cuenta local de demostración | Contraseña | Uso |
-|---|---|---|
-| `alice` | Valor privado `ALICE_PASSWORD` de `.env` | Login de aplicación, usuario LDAP |
-| `bob` | Valor privado `BOB_PASSWORD` de `.env` | Login de aplicación, usuario LDAP |
-| `admin` | Valor privado `KEYCLOAK_ADMIN_PASSWORD` de `.env` | Administración Keycloak, realm master |
+## Docker y persistencia existentes
 
-LDAP usa `cn=admin,dc=example,dc=com` con `LDAP_ADMIN_PASSWORD` para el bind del
-proveedor y la inicialización. PostgreSQL usa `keycloak` con `POSTGRES_PASSWORD`.
-Estas cuentas pertenecen únicamente a esta práctica local.
-LDAP y PostgreSQL no publican puertos en el host. Los tres servicios web están
-publicados exclusivamente sobre `127.0.0.1`.
+En esta máquina el daemon predeterminado usa `vfs`; `lab.sh` selecciona el
+daemon `overlay2` en `unix:///tmp/opencode/games-docker.sock`. La opción
+`GAMES_ISOLATED_DOCKER=1` lo fuerza; `0` usa el Docker seleccionado por el entorno.
+`bash lab.sh docker-host` informa el endpoint seleccionado sin arrancar servicios.
 
-## Demostración funcional
+Las imágenes y la caché ya no residen en el tmpfs de `/tmp`: se guardan en la
+imagen ext4 persistente `../.lab-docker/games-docker.ext4` (4 GiB lógicos, sparse),
+montada automáticamente en `/tmp/opencode/games-docker-store`. El `data-root` real
+es `/tmp/opencode/games-docker-store/data`; el socket y exec-root sí son temporales.
+`scripts/docker_store.py` comprueba el dispositivo de respaldo antes de reutilizar
+el montaje y nunca reformatea un almacén existente. Usa el almacenamiento persistente
+del Live, por lo que conservar `.lab-docker` es necesario para mantener las imágenes.
 
-1. Ejecuta `bash lab.sh up` y confirma los estados con `bash lab.sh ps -a`.
-2. Abre http://localhost:4200 y las herramientas de desarrollo del navegador.
-3. En la pestaña Console, activa **Preserve log** si quieres conservar mensajes
-   a través de redirecciones. Pulsa **Entrar con Keycloak**.
-4. En la página de Keycloak, introduce `alice` y el valor `ALICE_PASSWORD` de tu `.env`.
-5. El dashboard muestra la biblioteca. La consola muestra
-   `[DEMO LOCAL] JWT · inicio de sesión` y el access token.
-6. Abre **Agregar videojuego**, completa título, género, plataforma y año, y guarda.
-7. La consola muestra `[DEMO LOCAL] JWT · agregar videojuego`; Network muestra
-   `POST /api/games`, respuesta 201 y el encabezado `Authorization: Bearer …`.
-8. Vuelve al listado, busca el título y recarga la página: el juego permanece.
-9. Pulsa **Salir**. Abrir `/dashboard` o `/games/new` sin sesión conduce a `/login`.
+`lab.sh up` construye **un servicio cada vez**, con salida detallada; las descargas
+del daemon están limitadas a una simultánea. Un lock impide construcciones duplicadas
+mediante el lanzador. Angular se compila con un solo worker.
 
-La consola imprime tokens exclusivamente en la compilación de demostración,
-en un hostname loopback y con `demoTokenLogging=true`. En producción, Angular
-sustituye el módulo logger por una función vacía: ni el mensaje ni el logger
-de demostración se incluyen en el bundle. Los logs del servidor no imprimen JWT.
-
-## Arquitectura
-
-```text
-Navegador Angular ── Authorization Code + PKCE S256 ──► Keycloak
-       │                                                 │
-       │                                                 ├──► OpenLDAP (usuarios/credenciales)
-       │                                                 └──► PostgreSQL (realm/configuración/sesiones)
-       │
-       └── HttpClient + HttpInterceptor + Bearer ──► FastAPI
-                                                      │
-                                         rutas → servicios → repositorios
-                                                      │
-                                                   SQLite
-```
-
-Angular introduce las credenciales únicamente en Keycloak. OpenLDAP proporciona
-el directorio y verifica la contraseña; **Keycloak emite el JWT**. El backend de
-videojuegos no consulta LDAP ni las claves de Keycloak.
-
-### Backend en capas
-
-- `app/api/routes`: endpoints HTTP y dependencias de acceso.
-- `app/core/security.py`: comprobación del formato Bearer.
-- `app/schemas`: validación Pydantic de entrada/salida.
-- `app/services`: casos de uso de videojuegos.
-- `app/models`: modelo SQLAlchemy.
-- `app/persistence`: sesiones SQLite y repositorios.
-- `app/main.py`: aplicación, CORS, creación de tablas y tres juegos semilla
-  únicamente cuando la tabla está vacía.
-
-| Método | Endpoint | Resultado |
-|---|---|---|
-| GET | `/health` | 200 público |
-| GET | `/api/games` | 200, lista protegida por formato Bearer |
-| POST | `/api/games` | 201, registro de videojuego |
-
-Ejemplo de cuerpo POST:
-
-```json
-{"title":"Hollow Knight","genre":"Metroidvania","platform":"PC","release_year":2017}
-```
-
-Se recortan espacios, se rechazan campos vacíos y se limita el año a 1950–2100.
-SQLite está en `/data/games.db` dentro del servicio. En modo Live corresponde
-a `.lab-data/games/games.db`. El listado devuelve hasta 200 juegos.
-
-### Limitación académica obligatoria
-
-El backend exige `Authorization: Bearer <token>` y tres segmentos no vacíos
-Base64URL separados por puntos. Rechaza tokens vacíos, espacios internos y esquemas
-incorrectos con 401. El esquema Bearer no distingue mayúsculas/minúsculas.
-
-**No verifica firma, exp, nbf, issuer, audience ni permisos. Esta comprobación no
-protege realmente contra tokens falsificados.** `aaa.bbb.ccc` es aceptado
-deliberadamente, como demuestra la prueba de integración. Los guards de Angular
-tampoco sustituyen una autorización real del backend.
-
-CORS limita el navegador a `http://localhost:4200`, métodos GET/POST y cabeceras
-Authorization/Content-Type. El middleware atiende OPTIONS sin requerir token.
-
-### Configuración de identidad
-
-```text
-Realm: games-lab
-Cliente: games-spa, público (sin client_secret)
-Flujo: Authorization Code; PKCE S256 obligatorio
-Password Grant / Implicit / Service Accounts: deshabilitados
-Redirect URI: http://localhost:4200/auth/callback
-Web Origin: http://localhost:4200
-Post logout: http://localhost:4200/login
-LDAP: ldap://openldap:389
-Base usuarios: ou=users,dc=example,dc=com
-Modo: READ_ONLY, username LDAP: uid
-```
-
-El import incluye mapeos uid, givenName, sn y mail. Keycloak resuelve
-`${LDAP_ADMIN_PASSWORD}` desde su entorno al importar el realm; no hay contraseña
-en el JSON versionado. `infra/ldap/users.ldif.template` recibe las contraseñas de
-los usuarios en Base64 LDIF mediante stdin, sin guardar un LDIF renderizado con
-credenciales. El script verifica los binds y no rota contraseñas existentes.
-
-La configuración se importa
-en la primera inicialización. Keycloak omite un realm que ya existe: modificar
-el JSON no modifica automáticamente el realm persistido. Usa la consola de
-administración para cambios posteriores; no hace falta borrar volúmenes.
-
-## Comandos de operación
+Para una construcción larga observable que sobreviva al timeout del terminal/API:
 
 ```bash
-bash lab.sh ps -a
-bash lab.sh logs --tail 100 backend frontend keycloak
-bash lab.sh stop                  # Quita contenedores/red, conserva los datos
-bash lab.sh up                    # Reconstruye si es necesario y arranca
-bash lab.sh up --force-recreate   # Recrea contenedores conservando los datos
+python3 scripts/build_observed.py start keycloak
+python3 scripts/build_observed.py status keycloak
 ```
 
-No uses `down -v` ni borres `.lab-data` si quieres conservar la práctica.
+La salida plain se conserva en `test-results/build-keycloak.log`. No inicies otra
+construcción hasta que el estado indique `exit_code`; el mismo procedimiento admite
+`frontend`, `backend` y `openldap`. También puedes usar `bash lab.sh build keycloak`
+en primer plano, sin `--quiet`.
 
-## Pruebas reproducibles
+El daemon aislado mantiene `--iptables=false`. Las jails instalan reglas dentro
+del namespace de cada contenedor, no en el firewall del host. No se monta el
+socket Docker en ningún servicio ni se utiliza modo privilegiado.
 
-### Backend aislado de los datos reales
+`compose.live.yaml` mantiene los volúmenes existentes como bind a `.lab-data/`:
+`ldap-data`, `ldap-config`, `keycloak-db`, `games`. El SQLite original sigue en
+`.lab-data/games/games.db`. Los certificados están en `.lab-data/tls/`, ignorado
+por Git. No cambies de daemon para operar sobre una instalación existente.
 
 ```bash
-bash lab.sh exec -T backend python -m pytest -q tests/test_backend.py
+bash lab.sh stop                  # conserva los volúmenes
+bash lab.sh up
+bash lab.sh up --force-recreate   # conserva datos y repite migraciones
 ```
 
-26 pruebas; utilizan SQLite temporal, no el volumen de demostración.
-Incluyen GET/POST sin Bearer, formatos incorrectos, token ficticio, validación
-de entrada y preflight CORS. Puede aparecer una advertencia de deprecación del
-TestClient de Starlette/httpx; no afecta a la API ni a los resultados.
+No elimines volúmenes ni `.lab-data`. Para TLS, migración y restauración consulta
+`../videojuegos-auth/README.md`.
 
-### Integración y persistencia
+## Implementación HTTP
+
+- Frontend: build de producción servido por Nginx en 4200, con fallback SPA.
+- Backend: Nginx en 8000; Uvicorn **solo en `127.0.0.1:8008`**, sin access log
+  propio ni confianza en cabeceras proxy. CORS permanece en FastAPI.
+- Keycloak: distribución oficial 26.7.4 copiada a Debian con Java 21; access log
+  nativo usando `%a - - %t "%m %R" %s`. `%R` omite la consulta.
+- Cada imagen instala y ejecuta Fail2Ban, Python e iptables con `NET_ADMIN`.
+  Configuración común única en `videojuegos-auth/common/`.
+- Supervisor PID 1: señales a los grupos de procesos y salida 1 ante la muerte
+  de cualquier proceso crítico. Healthchecks comprueban HTTP y Fail2Ban.
+
+Jail `http-flood`: **60 peticiones por IP en 10 s**, veto inicial **10 min**,
+incremento por reincidencia, factor 2 y máximo 1 día. Acción `iptables-allports`
+en INPUT del propio contenedor. Se conservan los valores iniciales de la práctica:
+la navegación funcional comprobada no produjo vetos.
+
+Logs regulares en `/var/log/security/access.log` (frontend/backend) y
+`/opt/keycloak/data/log/keycloak-http-access.log` (Keycloak). Solo IP del socket,
+fecha, método, ruta sin query y estado. Sin JWT, Authorization, cookies ni cuerpos.
+El error log genérico de Nginx se descarta porque puede incluir peticiones completas;
+el supervisor registra las salidas de procesos y los healthchecks detectan fallos.
+Los logs y la base de vetos son locales al contenedor; las BD de negocio son
+persistentes. Keycloak rota su access log diariamente.
+
+## Autenticación y API
+
+Authorization Code + **PKCE S256**, cliente público `games-spa`, realm `games-lab`.
+Password Grant/Implicit/Service Accounts deshabilitados en ese cliente. Tokens
+en memoria; renovación antes de las peticiones y Bearer limitado a `/api/games`.
+No existe logger JWT en desarrollo ni producción.
+
+Endpoints: `/health` público; GET y POST `/api/games`; `/docs` para OpenAPI.
+SQLite conserva los juegos; la semilla se añade únicamente si la tabla está vacía.
+
+**Limitación académica existente:** el backend comprueba el formato Bearer y tres
+segmentos Base64URL, pero no verifica firma, expiración, issuer, audience ni
+permisos. La protección Fail2Ban no cambia esa validación.
+
+## Comprobaciones breves reproducibles
 
 ```bash
 python3 tests/integration.py --recreate
+python3 tests/security_checks.py
+python3 tests/supervisor_checks.py
 python3 tests/audit_logs.py
-bash lab.sh exec -T frontend node verify-production.mjs
+python3 -m unittest discover -s tests -p test_publication.py
+bash lab.sh exec -T backend python -m pytest -q tests/test_backend.py
 ```
 
-La primera prueba agrega un juego y recrea **solo** los servicios de esta práctica,
-comparando el catálogo antes/después. Comprueba además que Password Grant está
-deshabilitado y que Keycloak rechaza una solicitud sin PKCE. El rechazo OIDC
-usa redirección al callback con `error=invalid_request`, no necesariamente HTTP 400.
+El test de integración crea un juego y comprueba catálogo idéntico tras recrear.
+`security_checks.py` crea dos clientes efímeros sin privilegios en la red existente,
+verifica primero su IP observada y envía una secuencia fija de hasta 65 operaciones
+por jail. Exige evento Ban, regla y aumento del contador de paquetes, fallo de A,
+éxito de B y recuperación al desbanear. También comprueba CA/nombre, rechazos TLS,
+cierre de 389 y ausencia de bypass a Uvicorn. No es un benchmark.
 
-### Navegador real con Playwright
+`supervisor_checks.py` usa copias efímeras del frontend sin puertos publicados:
+termina Nginx o Fail2Ban y exige que PID 1 salga con error. `audit_logs.py` revisa
+stdout y access logs sin imprimir tokens; distingue el cierre administrativo normal
+de conexiones PostgreSQL de errores operativos.
+
+Navegador real:
 
 ```bash
 python3 -m venv /tmp/opencode/browser-venv
 /tmp/opencode/browser-venv/bin/pip install playwright==1.64.0
-PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=180000 /tmp/opencode/browser-venv/bin/playwright install chromium --only-shell
+/tmp/opencode/browser-venv/bin/playwright install chromium --only-shell
 /tmp/opencode/browser-venv/bin/python tests/browser_demo.py
 ```
 
-En otro sistema pueden hacer falta las dependencias de Chromium indicadas por
-Playwright. En esta máquina se ha ejecutado correctamente sin instalarlas.
-La prueba realiza 12 comprobaciones reales, incluyendo login de ambos usuarios,
-PKCE, Bearer automático, alta 201, sesión SSO, guards, búsqueda, logout y vista
-móvil de 390px. Crea un juego nuevo por ejecución.
+El test adelanta únicamente el reloj del navegador para provocar una renovación
+real sin esperar la caducidad. Comprueba login/logout de usuarios LDAP, callback,
+alta/listado, recarga, responsive y ausencia de JWT en consola. Los artefactos
+saneados se guardan en `test-results/`, ignorado por Git.
 
-Los resultados y capturas se guardan en `test-results/`:
+Para comprobar contra el respaldo anterior a la migración:
 
-- `browser.json`, `integration.json`, `log-audit.json`.
-- `login-desktop.png`, `dashboard-desktop.png`, `dashboard-mobile.png`, `add-game-desktop.png`.
+```bash
+python3 tests/verify_preserved_games.py ../.lab-backups/20261019-194554/lab-before-tls.tar
+```
 
-Los artefactos locales no guardan tokens ni contraseñas y `test-results/` queda
-excluido de Git. Las pruebas de integración leen las contraseñas del entorno o
-del `.env` privado, sin valores codificados en su código. Consulta
-`INFORME-PRUEBAS.md` para el resultado histórico de la recuperación y ejecución.
-
-## Versiones comprobadas
-
-Angular 22.2.3, Angular CLI/build 22.2.2, keycloak-js 26.2.4; Node 24.22.0.
-Python 3.12.15 en el contenedor; FastAPI 0.143.1, Uvicorn 0.54.0,
-SQLAlchemy 2.1.4 y Pydantic 2.14.1. Keycloak 26.7.4, OpenLDAP 1.5.0,
-PostgreSQL 16.15. Las imágenes base usan los tags definidos en Compose/Dockerfile;
-`package-lock.json` fija las dependencias npm.
-
-El ZIP usado como referencia se conserva localmente fuera de ambos proyectos y
-no forma parte de lo publicado. Los repositorios contienen todos los archivos
-necesarios para levantar esta práctica sin ese ZIP.
-
-## Archivos privados y publicación
-
-Se excluyen `.env`, variantes de entorno privadas, `.lab-data`, SQLite, claves,
-dependencias, cachés, logs, trazas y resultados de pruebas. `.env.example` contiene
-solo nombres de variables sin valores. No adjuntes exportaciones del realm o de
-LDAP de una instalación viva: pueden contener credenciales o datos de usuarios.
+El generador y las mediciones acotadas reales están en `../videojuegos-loadtest/`.
+Su README contiene los comandos y el protocolo previo; `results/20261020T040045Z/`
+incluye tablas por servicio y muestras saneadas. Se observaron y repitieron 19 RPS
+sin veto dentro del presupuesto de 20 RPS/4 conexiones, sin buscar capacidad máxima.
+El estado final de ambas etapas está en `INFORME-FAIL2BAN.md`.

@@ -3,8 +3,10 @@
 Ejecutar desde el host con Python + playwright; crea un juego de prueba.
 """
 import base64
+from datetime import datetime, timezone
 import json
 import os
+import re
 from pathlib import Path
 import time
 from urllib.parse import parse_qs, urlparse
@@ -27,10 +29,12 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
     context = browser.new_context(viewport={"width":1440,"height":1000})
     page = context.new_page()
+    page.clock.install()
     errors, token_logs, requests, token_grants = [], [], [], []
     page.on("pageerror", lambda e: errors.append(str(e)))
     # Solo clasifica los mensajes; nunca conserva el valor del token.
-    page.on("console", lambda msg: token_logs.append(msg.text.split(' JWT')[0]) if '[DEMO LOCAL]' in msg.text else None)
+    page.on("console", lambda msg: token_logs.append(True) if re.search(
+        r'\[DEMO LOCAL\]|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', msg.text) else None)
 
     def track(request):
         if '/protocol/openid-connect/token' in request.url:
@@ -56,8 +60,8 @@ with sync_playwright() as p:
     expect(page).to_have_url('http://localhost:4200/dashboard', timeout=60000)
     expect(page.locator('.game-card').first).to_be_visible(timeout=30000)
     assert 'authorization_code' in token_grants and 'password' not in token_grants
-    assert token_logs, 'Falta JWT de inicio de sesión en consola local'
-    passed('Login LDAP alice vía Keycloak; intercambio de código y JWT en consola local')
+    assert not token_logs, 'Token detectado en consola (valor omitido)'
+    passed('Login LDAP alice vía Keycloak; intercambio de código sin JWT en consola')
     get_token = next(token for method,token in requests if method == 'GET')
     assert get_token.startswith('Bearer ')
     token = get_token.removeprefix('Bearer ')
@@ -82,6 +86,8 @@ with sync_playwright() as p:
     page.locator('#platform').fill('PC')
     page.locator('#release_year').fill('2026')
     page.screenshot(path=str(OUTPUT/'add-game-desktop.png'), full_page=True)
+    # Expire the browser's access-token clock without waiting or changing server time.
+    page.clock.set_fixed_time(datetime.fromtimestamp(claims['exp'] + 5, timezone.utc))
     with page.expect_response(lambda r: r.url == 'http://localhost:8001/api/games' and r.request.method == 'POST') as created:
         page.get_by_role('button', name='Guardar videojuego').click()
     assert created.value.status == 201
@@ -89,8 +95,10 @@ with sync_playwright() as p:
     expect(page).to_have_url('http://localhost:4200/dashboard')
     expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible()
     assert any(method == 'POST' and value.startswith('Bearer ') for method,value in requests)
-    assert len(token_logs) >= 2
-    passed('Alta real desde Angular: POST 201, Bearer automático, JWT en consola y listado actualizado')
+    assert 'refresh_token' in token_grants, 'Expected actual token renewal'
+    page.clock.set_fixed_time(datetime.now(timezone.utc))
+    assert not token_logs, 'Token detectado en consola (valor omitido)'
+    passed('Renovación real y alta POST 201 con Bearer, sin JWT en consola')
     page.reload()
     expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible(timeout=60000)
     passed('Recarga completa conserva sesión SSO y videojuego')
@@ -112,6 +120,7 @@ with sync_playwright() as p:
     expect(page).to_have_url('http://localhost:4200/dashboard',timeout=60000)
     expect(page.locator('.user')).to_contain_text('bob')
     passed('Login LDAP bob mediante el mismo flujo PKCE')
+    assert not token_logs, 'Token detectado en consola (valor omitido)'
     browser.close()
     report = {'passed':results,'game':game,'javascript_errors':errors,'token_values_saved':False}
     (OUTPUT/'browser.json').write_text(json.dumps(report,indent=2,ensure_ascii=False))

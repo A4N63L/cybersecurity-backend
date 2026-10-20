@@ -32,8 +32,9 @@ class PublicationConfigTests(unittest.TestCase):
         self.assertTrue(all(value == "" for value in entries.values()))
 
     def test_templates_reference_private_environment(self):
-        self.assertIn('"${LDAP_ADMIN_PASSWORD}"', (ROOT / "infra/keycloak/import/games-lab-realm.json").read_text())
-        template = (ROOT / "infra/ldap/users.ldif.template").read_text()
+        auth = ROOT.parent / "videojuegos-auth"
+        self.assertIn('"${LDAP_ADMIN_PASSWORD}"', (auth / "keycloak/import/games-lab-realm.json").read_text())
+        template = (auth / "ldap/users.ldif.template").read_text()
         self.assertIn("userPassword:: @ALICE_PASSWORD_BASE64@", template)
         self.assertIn("userPassword:: @BOB_PASSWORD_BASE64@", template)
 
