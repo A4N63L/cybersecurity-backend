@@ -1,0 +1,111 @@
+name: ciber-p1-games
+services:
+  openldap:
+    image: osixia/openldap:1.5.0
+    environment:
+      LDAP_ORGANISATION: Games Lab
+      LDAP_DOMAIN: example.com
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:?Configura LDAP_ADMIN_PASSWORD en .env}
+      LDAP_TLS: "false"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+    networks: [lab]
+    healthcheck:
+      test: [CMD-SHELL, 'ldapsearch -x -H ldap://localhost:389 -D cn=admin,dc=example,dc=com -w "$$LDAP_ADMIN_PASSWORD" -b dc=example,dc=com -s base >/dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  ldap-init:
+    image: osixia/openldap:1.5.0
+    entrypoint: [/bin/sh, /init/init.sh]
+    environment:
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:?Configura LDAP_ADMIN_PASSWORD en .env}
+      ALICE_PASSWORD: ${ALICE_PASSWORD:?Configura ALICE_PASSWORD en .env}
+      BOB_PASSWORD: ${BOB_PASSWORD:?Configura BOB_PASSWORD en .env}
+    volumes:
+      - ./infra/ldap:/init:ro
+    depends_on:
+      openldap: {condition: service_healthy}
+    networks: [lab]
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD en .env}
+    volumes:
+      - keycloak_db:/var/lib/postgresql/data
+    networks: [lab]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U keycloak -d keycloak]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4
+    command: [start-dev, --import-realm]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Configura KEYCLOAK_ADMIN_PASSWORD en .env}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD en .env}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:?Configura LDAP_ADMIN_PASSWORD en .env}
+      KC_HOSTNAME: http://localhost:8082
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports: ["127.0.0.1:8082:8080"]
+    volumes:
+      - ./infra/keycloak/import:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+      ldap-init: {condition: service_completed_successfully}
+    networks: [lab]
+    healthcheck:
+      test: [CMD-SHELL, "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000; printf \"GET /health/ready HTTP/1.0\\r\\n\\r\\n\" >&3; cat <&3' | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 90s
+  backend:
+    image: ciber-p1-games-backend:dev
+    build:
+      context: .
+      network: host
+    environment:
+      DATABASE_URL: sqlite:////data/games.db
+    ports: ["127.0.0.1:8001:8000"]
+    volumes:
+      - games_data:/data
+    networks: [lab]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+  frontend:
+    image: ciber-p1-games-frontend:dev
+    build:
+      context: ../videojuegos-frontend
+      network: host
+    ports: ["127.0.0.1:4200:4200"]
+    depends_on:
+      backend: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    networks: [lab]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4200').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+volumes:
+  ldap_data:
+  ldap_config:
+  keycloak_db:
+  games_data:
+networks:
+  lab:

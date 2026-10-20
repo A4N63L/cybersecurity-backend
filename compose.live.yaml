@@ -1,0 +1,10 @@
+# Almacena datos en el proyecto incluso cuando el Docker aislado usa /tmp.
+volumes:
+  ldap_data:
+    driver_opts: {type: none, o: bind, device: "${LAB_DATA_DIR}/ldap-data"}
+  ldap_config:
+    driver_opts: {type: none, o: bind, device: "${LAB_DATA_DIR}/ldap-config"}
+  keycloak_db:
+    driver_opts: {type: none, o: bind, device: "${LAB_DATA_DIR}/keycloak-db"}
+  games_data:
+    driver_opts: {type: none, o: bind, device: "${LAB_DATA_DIR}/games"}

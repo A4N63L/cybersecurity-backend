@@ -1,0 +1,52 @@
+{
+  "realm": "games-lab",
+  "enabled": true,
+  "displayName": "GameVault · Laboratorio LDAP",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "clients": [{
+    "clientId": "games-spa",
+    "name": "GameVault Angular",
+    "enabled": true,
+    "protocol": "openid-connect",
+    "publicClient": true,
+    "standardFlowEnabled": true,
+    "implicitFlowEnabled": false,
+    "directAccessGrantsEnabled": false,
+    "serviceAccountsEnabled": false,
+    "redirectUris": ["http://localhost:4200/auth/callback"],
+    "webOrigins": ["http://localhost:4200"],
+    "attributes": {
+      "pkce.code.challenge.method": "S256",
+      "post.logout.redirect.uris": "http://localhost:4200/login"
+    }
+  }],
+  "components": {
+    "org.keycloak.storage.UserStorageProvider": [{
+      "name": "games-openldap",
+      "providerId": "ldap",
+      "config": {
+        "enabled": ["true"], "priority": ["0"], "editMode": ["READ_ONLY"],
+        "syncRegistrations": ["false"], "vendor": ["other"],
+        "usernameLDAPAttribute": ["uid"], "rdnLDAPAttribute": ["uid"],
+        "uuidLDAPAttribute": ["entryUUID"],
+        "userObjectClasses": ["inetOrgPerson", "organizationalPerson"],
+        "connectionUrl": ["ldap://openldap:389"],
+        "usersDn": ["ou=users,dc=example,dc=com"],
+        "authType": ["simple"], "bindDn": ["cn=admin,dc=example,dc=com"],
+        "bindCredential": ["${LDAP_ADMIN_PASSWORD}"], "searchScope": ["1"],
+        "connectionPooling": ["true"], "pagination": ["true"],
+        "cachePolicy": ["DEFAULT"], "fullSyncPeriod": ["-1"], "changedSyncPeriod": ["-1"]
+      },
+      "subComponents": {
+        "org.keycloak.storage.ldap.mappers.LDAPStorageMapper": [
+          {"name":"username","providerId":"user-attribute-ldap-mapper","config":{"ldap.attribute":["uid"],"user.model.attribute":["username"],"read.only":["true"],"always.read.value.from.ldap":["false"],"is.mandatory.in.ldap":["true"],"is.binary.attribute":["false"]}},
+          {"name":"first name","providerId":"user-attribute-ldap-mapper","config":{"ldap.attribute":["givenName"],"user.model.attribute":["firstName"],"read.only":["true"],"always.read.value.from.ldap":["true"],"is.mandatory.in.ldap":["true"],"is.binary.attribute":["false"]}},
+          {"name":"last name","providerId":"user-attribute-ldap-mapper","config":{"ldap.attribute":["sn"],"user.model.attribute":["lastName"],"read.only":["true"],"always.read.value.from.ldap":["true"],"is.mandatory.in.ldap":["true"],"is.binary.attribute":["false"]}},
+          {"name":"email","providerId":"user-attribute-ldap-mapper","config":{"ldap.attribute":["mail"],"user.model.attribute":["email"],"read.only":["true"],"always.read.value.from.ldap":["true"],"is.mandatory.in.ldap":["false"],"is.binary.attribute":["false"]}}
+        ]
+      }
+    }]
+  }
+}
