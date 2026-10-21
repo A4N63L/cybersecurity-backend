@@ -202,10 +202,10 @@ La afirmación anterior de ausencia de pendientes se limita al protocolo técnic
 medido; **no acredita cumplimiento íntegro del enunciado**. Véase
 [CONTRASTE-ENUNCIADO.md](CONTRASTE-ENUNCIADO.md):
 
-1. **Pendiente de acreditar:** no se encontró evidencia de haber ejecutado primero
-   el `flood.py` original y después modificarlo. Los resultados publicados pertenecen
-   al adaptado. Una ejecución futura no demostrará retroactivamente ese orden;
-   la subsanación debe registrarse con sus fechas reales.
+1. **Anterioridad histórica sin acreditar:** no se encontró evidencia de haber
+   ejecutado el original antes de desarrollar la adaptación. La ejecución posterior
+   del original y la comprobación siguiente del adaptado se realizaron el día 21
+   y se documentan abajo, sin atribuirles una fecha anterior.
 2. **Diferencia de repositorios:** LDAP/Keycloak/PostgreSQL estaban originalmente
    en `cybersecurity-backend`. `cybersecurity-auth` es una separación nueva de esa
    infraestructura, no un tercer repositorio previo reutilizado. No se identificó
@@ -213,5 +213,47 @@ medido; **no acredita cumplimiento íntegro del enunciado**. Véase
    confirmar la aceptación de esa correspondencia o facilitar el repo anterior
    si existe en otra ubicación.
 
-Esta revisión solo corrige documentación: no reconstruye imágenes, ejecuta el
-original ni repite benchmarks, y no altera los resultados históricos.
+La revisión inicial del día 20 solo corrigió documentación. La subsanación siguiente
+se realizó el día 21, sin repetir ni alterar los resultados históricos de capacidad.
+
+## Subsanación posterior: original seguido del adaptado (21 de octubre de 2026 UTC)
+
+Archivo original extraído sin editar del ZIP, SHA-256:
+`48189b9442150d04c1771d83df3cf57eed3048536e2f44dba7fe17cca9d35434`.
+La copia está en `videojuegos-loadtest/reference/attacker/flood.py`.
+
+Se prepararon solo las dos víctimas originales HTTP/80 y un cliente independiente,
+en la red interna `172.30.240.0/24`, sin puertos publicados. Los Dockerfiles y
+configuraciones de las víctimas se conservaron intactos; el cliente reutilizó
+`python:3.12-slim` (stdlib), sin reconstruir imágenes del dashboard.
+
+El original se ejecutó de **03:41:39.712734 a 03:42:02.882472 UTC**, con
+`DURATION=10`, `CONCURRENCY=3`, `REQUESTS_PER_SECOND=20`, primero contra
+`victim-protected` y después contra `victim-unprotected`:
+
+| Destino | Intentos del original | HTTP 200 | Fallos/no-200 agrupados |
+|---|---|---|---|
+| Protegido | 87 | 64 | 23 |
+| No protegido | 200 | 200 | 0 |
+
+Hubo Ban confirmado para `172.30.240.20` y 35 paquetes rechazados; otra IP seguía
+accediendo al protegido. No se atribuyen automáticamente los 23 fallos al veto:
+el original no ofrece desglose de transporte y paquetes no equivalen a peticiones.
+
+Después, a las **03:42:07.738100 UTC**, se lanzó el adaptado contra `frontend 4200`
+con `--scheme http --path / --duration 5 --concurrency 1 --rps 2 --timeout 1`:
+10 HTTP 200, cero errores, 5,003 s y 1,999 RPS medidos. Es una comprobación breve,
+no una nueva medición de capacidad.
+
+Se encontraron detenidos los contenedores existentes del dashboard tras el reinicio
+del daemon y solo se arrancaron, sin recrearlos, reconstruirlos ni reconfigurarlos.
+Se retiraron los cuatro contenedores temporales, la red y las dos etiquetas de
+imagen originales, conservando imágenes y datos previos y sin prune global.
+Las cuatro jails quedaron activas y las huellas de configuración del dashboard
+no cambiaron. Los preparativos fallidos anteriores se registran como tales, sin carga.
+
+Evidencias saneadas y comandos:
+[`original-followup-20261021T033842Z/FOLLOWUP.md`](https://github.com/A4N63L/cybersecurity-loadtest/blob/main/results/original-followup-20261021T033842Z/FOLLOWUP.md).
+Se mantiene la diferencia histórica: la ejecución original ahora acreditada fue
+posterior al desarrollo. También permanece la correspondencia de repositorios
+LDAP/Keycloak procedentes del backend, detallada en el documento de contraste.

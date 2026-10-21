@@ -1,43 +1,74 @@
 # Contraste documental de dos requisitos del maestro
 
-Revisión del 20 de octubre de 2026 UTC. No se reconstruyeron imágenes ni se ejecutó
-el script original ni se repitieron benchmarks durante esta revisión.
+Revisión inicial: 20 de octubre de 2026 UTC, únicamente documental.
+Actualización: **21 de octubre de 2026 UTC**, tras una ejecución posterior del
+original seguida de una comprobación breve del adaptado. No se repitió la campaña
+de capacidad anterior ni se reconstruyeron imágenes del dashboard.
 
 ## 1. Ejecutar primero el original y después modificarlo
 
-**Estado: PENDIENTE de acreditar. No se encontró evidencia verificable de una
-ejecución del original anterior a la adaptación.**
+**Estado actualizado:** la ejecución del original intacto **ya está realizada y
+documentada**, seguida de una comprobación del adaptado. **Sigue sin acreditarse
+históricamente una ejecución anterior al desarrollo de la adaptación.**
 
 El origen inspeccionado es `attacker/flood.py` de `fail2ban-ddos.zip`, conservado
 localmente junto a los proyectos. Su SHA-256, calculado leyendo ese miembro del
-ZIP sin ejecutarlo, es:
+ZIP, y verificado antes y después de la nueva ejecución, es:
 
 ```text
 48189b9442150d04c1771d83df3cf57eed3048536e2f44dba7fe17cca9d35434
 ```
 
-Ese hash demuestra la identidad del archivo inspeccionado, **no su ejecución**.
-No se localizó un registro con comando, fecha y salida del original. Las evidencias
-publicadas en `cybersecurity-loadtest/results/20261020T040045Z/` identifican destinos
-`frontend`, `backend` y `keycloak`, parámetros CLI y métricas de la versión adaptada.
-La campaña va de 04:00:45 a 04:06:10 UTC del 20 de octubre de 2026. Tampoco las
-pruebas del generador adaptado acreditan la ejecución del original.
+Ese hash por sí solo identifica el archivo; la ejecución ahora se acredita además
+con comando, fechas y stdout en
+[`original-followup-20261021T033842Z`](https://github.com/A4N63L/cybersecurity-loadtest/blob/main/results/original-followup-20261021T033842Z/FOLLOWUP.md).
+La copia sin editar se conserva en `cybersecurity-loadtest/reference/attacker/flood.py`.
+
+En la revisión del día 20 no se había localizado esa evidencia. La campaña anterior
+`results/20261020T040045Z/` sigue correspondiendo únicamente al adaptado y conserva
+sus datos de 04:00:45 a 04:06:10 UTC del 20 de octubre. No se han cambiado ni
+reinterpretado sus fechas como si el original se hubiera ejecutado primero.
 
 El original tiene destinos fijos `victim-protected` y `victim-unprotected` en
 HTTP/80; no puede dirigirse al laboratorio actual pasando host y puerto por CLI.
 El `run_demo.sh` del ZIP construye imágenes y su Compose configura 150 RPS,
-150 workers y 45 s por destino: no se ejecutó como parte de esta revisión.
+150 workers y 45 s por destino: no se utilizó. Se prepararon solo las dos víctimas
+con los archivos originales, en `172.30.240.0/24`, sin publicar puertos ni colisionar
+con la red del dashboard. El cliente reutilizó Python 3.12 slim en vez de construir
+el cliente Alpine/curl del ZIP, porque el script solo requiere la biblioteca estándar.
 
-**Corrección mínima pendiente:** preparar los dos destinos fijos en un entorno
-aislado cuya red no colisione con la actual y ejecutar el archivo original intacto
-con sus variables de entorno acotadas, por ejemplo 10 s/destino, 1 worker y 2 RPS.
-Conservar hash, comando exacto, fecha, stdout y condiciones del entorno.
-No se presentan cifras hasta realizar esa ejecución.
+### Nueva secuencia efectivamente realizada
 
-Una ejecución futura será una **subsanación posterior**, no prueba retroactiva
-del orden original → modificación. Si el maestro exige demostrar ese orden, se
-necesita una nueva secuencia documentada que comience por el original y continúe
-con la adaptación, sin atribuirle una fecha anterior a los resultados existentes.
+1. Original sin editar: **21 de octubre, 03:41:39.712734 → 03:42:02.882472 UTC**,
+   con `DURATION=10`, `CONCURRENCY=3`, `REQUESTS_PER_SECOND=20`. El stdout acredita
+   primero `victim-protected` y después `victim-unprotected`.
+2. Adaptado, después de finalizar el original: comando lanzado a las
+   **03:42:07.738100 UTC**, contra `frontend 4200`, con los argumentos reales
+   `--scheme http --path / --duration 5 --concurrency 1 --rps 2 --timeout 1`.
+
+| Ejecución | Intentos contabilizados | HTTP 200 | Fallos/no-200 agrupados |
+|---|---|---|---|
+| Original, `victim-protected` | 87 | 64 | 23 |
+| Original, `victim-unprotected` | 200 | 200 | 0 |
+| Adaptado, frontend | 10 | 10 | 0; sin timeouts ni errores de conexión/protocolo |
+
+La víctima protegida registró un Ban de `172.30.240.20`, con 35 paquetes rechazados
+en su regla, mientras otra IP seguía accediendo. Esto demuestra el veto de esa IP,
+**no permite atribuir uno a uno los 23 fallos agregados**: el original mezcla
+estados no-200 y errores de transporte, y paquetes no equivalen a peticiones.
+La comprobación del adaptado midió 5,003 s y 1,999 RPS; no repite los benchmarks.
+
+Se retiraron solo contenedores, red, etiquetas de imagen y directorios temporales
+de esta ejecución. Las cuatro jails del dashboard quedaron activas. El dashboard
+se encontró detenido tras reiniciar el daemon y únicamente se arrancaron sus
+contenedores existentes: los IDs, imágenes y huellas de configuración se conservaron.
+Se documentan dos preparaciones abortadas sin carga, distintas de la ejecución real.
+
+**Diferencia histórica que permanece:** se acredita ahora original → comprobación
+del adaptado, pero no original → desarrollo de la adaptación. Esta es una
+**subsanación posterior**. Su aceptación respecto al orden literal corresponde al
+maestro; no se afirma ni puede demostrarse retroactivamente que la ejecución
+del original ocurrió antes del desarrollo ya realizado.
 
 ## 2. Reutilizar repositorios anteriores de LDAP, backend y frontend
 
@@ -89,13 +120,13 @@ uno nuevo». La corrección mínima es documentar esta correspondencia y confirm
 con el maestro si acepta la extracción de la infraestructura del backend. Si el
 repositorio LDAP anterior existe en otra ubicación, hace falta su URL para revisar
 y actualizar ese repositorio preservando su historial, en vez de dar por equivalente
-el repo nuevo. No se crea un quinto repositorio ni se altera infraestructura en
-esta revisión documental.
+el repo nuevo. No se ha creado un quinto repositorio ni se ha reorganizado de
+nuevo la infraestructura del dashboard para esta subsanación.
 
 ## Documentación y mediciones existentes
 
-El README de loadtest ahora distingue los cambios respecto al original, ejemplos
-de uso frente a comandos efectivamente utilizados y ejecución adaptada frente a
-la previa pendiente. Incluye la repetición de 19 RPS solicitados por 10 s y sus
-RPS alcanzados/percentiles, junto con sus límites y el presupuesto reservado a B.
-No se han cambiado los JSON, fechas, cifras ni el protocolo histórico.
+El README de loadtest distingue cambios respecto al original, ejemplos de uso,
+comandos realmente utilizados, campaña del adaptado del día 20 y subsanación
+del día 21. Conserva la tabla de 19 RPS por 10 s con sus límites y añade el resultado
+del original y la comprobación breve posterior. No se han cambiado los JSON,
+fechas, cifras ni el protocolo de la campaña histórica del día 20.

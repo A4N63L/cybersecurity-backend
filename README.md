@@ -186,7 +186,8 @@ Su README contiene los comandos y el protocolo previo; `results/20261020T040045Z
 incluye tablas por servicio y muestras saneadas. Se observaron y repitieron 19 RPS
 sin veto dentro del presupuesto de 20 RPS/4 conexiones, sin buscar capacidad máxima.
 El estado final de ambas etapas está en `INFORME-FAIL2BAN.md`.
-El [contraste con el enunciado](CONTRASTE-ENUNCIADO.md) distingue las evidencias
-existentes de los pendientes: no se acredita una ejecución del script original
-antes de adaptarlo, y LDAP/Keycloak se separaron de este backend hacia un repo
-auth nuevo, en lugar de reutilizar un tercer repositorio LDAP previo identificado.
+El [contraste con el enunciado](CONTRASTE-ENUNCIADO.md) distingue las evidencias:
+el original se ejecutó el 21 de octubre de 2026, seguido de una comprobación del
+adaptado, como subsanación posterior; no se acredita que ocurriera antes del
+desarrollo. LDAP/Keycloak se separaron de este backend hacia un repo auth nuevo,
+en lugar de reutilizar un tercer repositorio LDAP previo identificado.
