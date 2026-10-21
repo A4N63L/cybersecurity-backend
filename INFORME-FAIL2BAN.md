@@ -192,6 +192,26 @@ locales del generador verificaron HTTP de error, timeout/conexión, límite glob
 entre workers e interrupción limpia. No se repitió la batería funcional anterior.
 
 Comandos exactos de instalación/ejecución y explicación de los resultados en
-`../videojuegos-loadtest/README.md`. No quedan comprobaciones obligatorias
-pendientes dentro de estos límites. No se aumentó la carga, no se buscó la
-capacidad máxima y no se crearon remotos ni se hizo push.
+`../videojuegos-loadtest/README.md`. Las comprobaciones técnicas descritas pasaron
+dentro de estos límites. No se aumentó la carga ni se buscó la capacidad máxima.
+Los cuatro proyectos se publicaron después de esta campaña, sin cambiar sus cifras.
+
+## Contraste posterior con los requisitos del maestro
+
+La afirmación anterior de ausencia de pendientes se limita al protocolo técnico
+medido; **no acredita cumplimiento íntegro del enunciado**. Véase
+[CONTRASTE-ENUNCIADO.md](CONTRASTE-ENUNCIADO.md):
+
+1. **Pendiente de acreditar:** no se encontró evidencia de haber ejecutado primero
+   el `flood.py` original y después modificarlo. Los resultados publicados pertenecen
+   al adaptado. Una ejecución futura no demostrará retroactivamente ese orden;
+   la subsanación debe registrarse con sus fechas reales.
+2. **Diferencia de repositorios:** LDAP/Keycloak/PostgreSQL estaban originalmente
+   en `cybersecurity-backend`. `cybersecurity-auth` es una separación nueva de esa
+   infraestructura, no un tercer repositorio previo reutilizado. No se identificó
+   otro repo LDAP anterior omitido en el directorio y la cuenta revisados. Hace falta
+   confirmar la aceptación de esa correspondencia o facilitar el repo anterior
+   si existe en otra ubicación.
+
+Esta revisión solo corrige documentación: no reconstruye imágenes, ejecuta el
+original ni repite benchmarks, y no altera los resultados históricos.

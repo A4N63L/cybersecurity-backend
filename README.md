@@ -7,8 +7,8 @@ PostgreSQL es el almacenamiento de apoyo de Keycloak.
 
 ## Proyectos y arranque
 
-Conserva estas carpetas hermanas (frontend y backend mantienen sus remotos;
-auth y loadtest son repositorios locales nuevos, todavía sin remoto):
+Conserva estas carpetas hermanas. Los cuatro repositorios ya están publicados
+en la cuenta `A4N63L`; frontend/backend se reutilizaron, auth/loadtest son nuevos:
 
 ```text
 Ciberseguridad/
@@ -186,3 +186,7 @@ Su README contiene los comandos y el protocolo previo; `results/20261020T040045Z
 incluye tablas por servicio y muestras saneadas. Se observaron y repitieron 19 RPS
 sin veto dentro del presupuesto de 20 RPS/4 conexiones, sin buscar capacidad máxima.
 El estado final de ambas etapas está en `INFORME-FAIL2BAN.md`.
+El [contraste con el enunciado](CONTRASTE-ENUNCIADO.md) distingue las evidencias
+existentes de los pendientes: no se acredita una ejecución del script original
+antes de adaptarlo, y LDAP/Keycloak se separaron de este backend hacia un repo
+auth nuevo, en lugar de reutilizar un tercer repositorio LDAP previo identificado.
